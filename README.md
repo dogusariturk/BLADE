@@ -107,6 +107,7 @@ It is particularly useful for:
 * Guiding experimental alloy selection
 
 <img width="169" height="66" alt="Multiverse" src="https://github.com/user-attachments/assets/f8de55aa-16ba-427d-baf9-22373655f391" />
+
 **Figure 4.** Overview of the BLADE framework and its integration with external tools and supporting frameworks (the Multi-verse).
 
 ---
