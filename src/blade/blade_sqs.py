@@ -103,13 +103,15 @@ class BladeSQS:
         a_sites = 0
         b_sites = 0
         sites = 0
+
+        sqs_struct(self)
         for line in self.rndstr.splitlines():
             parts = line.split()
             if len(parts) != 4:
                 continue
             label = parts[-1]
             sites += 1
-            if label == "B":
+            if label != "a":
                 b_sites += 1
             else:
                 a_sites += 1

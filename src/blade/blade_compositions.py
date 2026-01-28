@@ -59,12 +59,6 @@ class BladeCompositions:
         if not self.allow_lower_order:
             compositions = [c for c in compositions if len(c) == self.system_size]
         compositions = sorted(compositions)
-        print(compositions)
-        print(f"Total compositions: {len(compositions)}")
-
-        # Ensure no duplicate compositions
-        unique_comps = {tuple(sorted(c)) for c in compositions}
-        print("Unique:", len(unique_comps))
 
         self.compositions = compositions
         return compositions
@@ -75,7 +69,5 @@ class BladeCompositions:
         len_comps = []
         for i in compositions:
             len_comps += [len(i)]
-        print(len_comps)
         unique_len_comps = set(len_comps) if len(len_comps) >= 2 else {len_comps[0]}
-        print("Unique Systems:", unique_len_comps)
         return unique_len_comps

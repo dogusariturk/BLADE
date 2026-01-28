@@ -1,51 +1,32 @@
 import os
 from pathlib import Path
+import itertools
 
 import matplotlib.pyplot as plt
-from materialsframework.calculators import GraceCalculator as Calculator
-from materialsframework.tools.sqs2tdb import Sqs2tdb
 from pycalphad import Database, binplot
 from pycalphad import variables as v
 
 from blade.blade_compositions import BladeCompositions
-from blade.blade_phase_diagram import BladePhaseDiagram
 from blade.blade_sqs import BladeSQS
+from blade.blade_tdb_gen import BladeTDBGen
 
-phase = "HEDB1"
+phases = ["HEDB1"]
 liquid = True
 liquid = False
 path0 = Path("/Users/chasekatz/Desktop/School/Research")
 path1 = path0 / "PhaseForge/PhaseForge/atat/data/sqsdb/"
 path2 = path0 / "BLADE/BLADE/"
 level = 4
-time = 30
+time = 1
 
 # Specify elements and system size (Total # elements)
 transition_metals = ["Zr", "Hf", "Ta", "Cr", "Ti", "V", "Nb", "Mo", "W"]
 rare_earths = ["Sc", "Y", "La", "Pr", "Nd", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu"]
+transition_metals = ["Cr", "Hf"]
 system_size = 2
 tm_element_range = [2, 2]
 re_element_range = [0, 0]
 allow_lower_order = True
-
-comp_gen = BladeCompositions(
-    transition_metals,
-    rare_earths,
-    system_size,
-    tm_min=tm_element_range[0],
-    tm_max=tm_element_range[1],
-    re_min=re_element_range[0],
-    re_max=re_element_range[1],
-    allow_lower_order=allow_lower_order,
-)
-
-compositions = comp_gen.generate_compositions()
-
-unique_len_comps = comp_gen.get_systems()
-
-print("Total # compositions: ", compositions)
-print("Unique length compositions: ", unique_len_comps)
-
 
 a = 1
 b = 1
@@ -87,66 +68,80 @@ sqsgen_levels = [
     """level=6         a=0.75,0.125,0.125""",
 ]
 
-os.chdir(path0)
+paths = [path0, path1, path2]
+composition_settings = [transition_metals, rare_earths, system_size,
+                        tm_element_range, re_element_range, allow_lower_order]
+sqs_gen_settings = [a, b, c, alpha, beta, gamma, rndstr, sqsgen_levels, level, time]
 
-sqs_gen = BladeSQS(a, b, c, alpha, beta, gamma, rndstr, sqsgen_levels, level)
 
-struct, sqs_struct = sqs_gen.sqs_struct()
+compositions = BladeCompositions(
+    transition_metals,
+    rare_earths,
+    system_size,
+    tm_min=tm_element_range[0],
+    tm_max=tm_element_range[1],
+    re_min=re_element_range[0],
+    re_max=re_element_range[1],
+    allow_lower_order=allow_lower_order,
+)
+
+composition_list = compositions.generate_compositions()
+
+unique_len_comps = compositions.get_systems()
+
+print("Compositions: ", composition_list)
+print("Total # compositions: ", len(composition_list))
+print("Unique length compositions: ", unique_len_comps)
+
+
+tdb_generator = BladeTDBGen(
+    phases,
+    liquid,
+    paths,
+    composition_settings,
+    sqs_gen_settings,
+)
+
+tdb_generator.generate_tdb()
+
 
 fraction = "0.75, 0.125, 0.125"
 fractions = [float(x) for x in fraction.split(",")]
+sqs_gen = BladeSQS(a, b, c, alpha, beta, gamma, rndstr, sqsgen_levels, level)
 N_atoms, counts = sqs_gen.supercell_size(fractions)
 print(N_atoms, counts)
 
-sqs_gen.sqs_gen(unique_len_comps, phase, path1, time)
-
-
-def sqsfit_func(comp, phases, level):
-    # Initialize the wrapper
-    sqs = Sqs2tdb(fmax=0.01, verbose=True, calculator=Calculator(device="cpu"))
-
-    # Fit SQS
-    sqs.fit(
-        species=comp,
-        lattices=phases,
-        level=level,
-    )
-
-
 PHASE_DIAGRAM_SYSTEM_SIZE = 4
 
-
-def plot(tdb, elements, phases, file):
+def plot(tdb, elements, phases, file, comp):
     if len(elements) >= PHASE_DIAGRAM_SYSTEM_SIZE:
         return
     fig = plt.figure(figsize=(9, 7))
     axes = fig.gca()
 
+    phase_list = []
+    for phase in phases:
+        phase_list += [f"{phase}_{len(comp)}"]
+    if liquid:
+        phase_list.append("LIQUID")
+
     # Compute the phase diagram and plot it
     binplot(
         tdb,
         elements,
-        phases,
+        phase_list,
         {v.X(elements[0]): (0, 1, 0.02), v.T: (1, 4000, 10), v.P: 101325, v.N: 1},
         plot_kwargs={"ax": axes},
     )
     plt.tight_layout()
     plt.savefig(f"{file}_Phase_Diagram.png", dpi=300)
 
-
-phasediagram = BladePhaseDiagram(liquid, path2, phase)
-
-for comp in compositions:
-    file, phases = phasediagram.directory(comp)
+for comp in composition_list:
+    file = f"{path2}{''.join(comp)}"
     os.chdir(file)
-    sqsfit_func(comp, phases, level)
-
-    file_names, elements = phasediagram.file_names(comp)
-    # Load database and choose the phases that will be considered
-
+    elements = [el.upper() for el in comp]
+    file_names = ["_".join(p) for p in itertools.permutations(elements)]
     for files in file_names:
         if Path(f"{files}.tdb").is_file():
             tdb = Database(f"{files}.tdb")
-
-    # Change back to main folder
-    os.chdir(path0)
+            plot(tdb, elements, phases, files, comp)
